@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { shortenAddress, formatNumber } from '@/lib/utils';
+import { formatNumber } from '@/lib/utils';
 
 interface WalletsData {
   total_unique_wallets: number;
@@ -10,30 +10,45 @@ interface WalletsData {
   wallet_details: Record<string, { txCount: number; totalVolume: number }>;
 }
 
+interface UsersStats {
+  total_users: number;
+  tier1_verified: number;
+  tier2_verified: number;
+  tier3_verified: number;
+}
+
 export default function AllWalletsOnBase() {
   const [walletsData, setWalletsData] = useState<WalletsData | null>(null);
+  const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    fetchWallets();
+    fetchData();
   }, []);
 
-  const fetchWallets = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/wallets/all');
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch wallets');
-      }
-
-      setWalletsData(result.data);
       setError(null);
-    } catch (err: any) {
-      setError(err.message);
+      const [walletsRes, usersRes] = await Promise.all([
+        fetch('/api/wallets/all'),
+        fetch('/api/users/stats'),
+      ]);
+      const walletsResult = await walletsRes.json();
+      const usersResult = await usersRes.json();
+
+      if (!walletsRes.ok) {
+        throw new Error(walletsResult.error || 'Failed to fetch wallets');
+      }
+      setWalletsData(walletsResult.data);
+
+      if (usersRes.ok && usersResult.data) {
+        setUsersStats(usersResult.data);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
       setLoading(false);
     }
@@ -77,59 +92,26 @@ export default function AllWalletsOnBase() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Summary Cards: Total Users (from users table) + Tier verified */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-primary to-primary-dark rounded-xl p-6 shadow-lg border border-primary/20">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
-              Total Wallets
-            </h3>
-            <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </div>
-          <p className="text-4xl font-bold text-white mb-1">
-            {formatNumber(walletsData.total_unique_wallets)}
-          </p>
-          <p className="text-sm text-white/80">
-            On Base Network
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-br from-secondary to-secondary-dark rounded-xl p-6 shadow-lg border border-secondary/20">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
-              Unique Users
+              Total Users
             </h3>
             <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </div>
           <p className="text-4xl font-bold text-white mb-1">
-            {formatNumber(walletsData.total_unique_users)}
+            {usersStats ? formatNumber(usersStats.total_users) : '—'}
           </p>
           <p className="text-sm text-white/80">
-            Active accounts
+            From users table
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-primary/90 to-primary-dark/90 rounded-xl p-6 shadow-lg border border-primary/20">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
-              Network
-            </h3>
-            <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <p className="text-4xl font-bold text-white mb-1">
-            Base
-          </p>
-          <p className="text-sm text-white/80">
-            Mainnet
-          </p>
-        </div>
-      </div>
+       </div>
 
       {/* Top Wallets List */}
       <div className="card">
@@ -164,7 +146,7 @@ export default function AllWalletsOnBase() {
                       {address}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Base Mainnet
+                      Wallet
                     </p>
                   </div>
                 </div>

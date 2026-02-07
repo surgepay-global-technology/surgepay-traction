@@ -7,6 +7,7 @@ import TransactionsPieChart from '@/components/TransactionsPieChart';
 import CurrencyPieChart from '@/components/CurrencyPieChart';
 import RecentTransactions from '@/components/RecentTransactions';
 import AllWalletsOnBase from '@/components/AllWalletsOnBase';
+import AppDownloads from '@/components/AppDownloads';
 import Header from '@/components/Header';
 
 const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
@@ -80,13 +81,24 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* All Wallets on Base */}
+        {/* App Downloads */}
         <section className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Wallets on Base Network
+            App Downloads
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            All unique wallet addresses with transaction activity
+            Total downloads from Apple App Store and Google Play. Set APPLE_DOWNLOADS and GOOGLE_PLAY_DOWNLOADS in .env.
+          </p>
+          <AppDownloads key={`downloads-${refreshKey}`} />
+        </section>
+
+        {/* All Wallets & Users */}
+        <section className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            All Wallets & Users
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            All unique wallet addresses and users with transaction activity
           </p>
           <AllWalletsOnBase key={`all-wallets-${refreshKey}`} />
         </section>

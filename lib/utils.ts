@@ -1,11 +1,18 @@
 export function formatCurrency(amount: number, currency: string): string {
-  const formatter = new Intl.NumberFormat('en-US', {
+  if (currency === 'NGN') {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency === 'NGN' ? 'NGN' : 'USD',
+    currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-  return formatter.format(amount);
+  }).format(amount);
 }
 
 export function formatNumber(num: number): string {
