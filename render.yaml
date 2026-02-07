@@ -1,0 +1,17 @@
+# Render Blueprint - SurgePay Dashboard
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: surgepay-dashboard
+    runtime: node
+    region: oregon
+
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      # Add your env vars in Render Dashboard: Environment → Environment Variables
+      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ALCHEMY_TOKEN, etc.

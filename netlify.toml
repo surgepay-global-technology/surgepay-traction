@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  environment = { NODE_VERSION = "18" }
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Next.js runtime - plugin sets publish dir automatically
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
