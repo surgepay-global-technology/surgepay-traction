@@ -86,9 +86,9 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             App Downloads
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          {/* <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Total downloads from Apple App Store and Google Play. Set APPLE_DOWNLOADS and GOOGLE_PLAY_DOWNLOADS in .env.
-          </p>
+          </p> */}
           <AppDownloads key={`downloads-${refreshKey}`} />
         </section>
 
