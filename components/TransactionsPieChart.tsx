@@ -25,7 +25,13 @@ export default function TransactionsPieChart() {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/transactions/stats-by-type');
+      // Add timestamp to bust cache
+      const response = await fetch(`/api/transactions/stats-by-type?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const result = await response.json();
 
       if (!response.ok) {

@@ -83,6 +83,12 @@ export async function GET(request: NextRequest) {
       data: result,
       total_rows_fetched: totalRowsFetched,
       fetched_at: new Date().toISOString()
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     });
   } catch (error: any) {
     console.error('Error fetching transaction stats by type:', error);
@@ -92,3 +98,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// Disable Next.js caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;

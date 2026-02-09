@@ -26,7 +26,13 @@ export default function TransactionStats() {
   const fetchOverview = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/transactions/overview');
+      // Add timestamp to bust cache
+      const response = await fetch(`/api/transactions/overview?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const result = await response.json();
 
       if (!response.ok) {

@@ -48,7 +48,13 @@ export default function CurrencyPieChart() {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/transactions/stats-by-currency');
+      // Add timestamp to bust cache
+      const response = await fetch(`/api/transactions/stats-by-currency?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const result = await response.json();
       setStats(result.data || []);
     } catch (err) {

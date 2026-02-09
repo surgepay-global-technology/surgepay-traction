@@ -72,10 +72,20 @@ export async function GET() {
       },
     ];
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch transaction overview';
     console.error('Transaction overview error:', err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+// Disable Next.js caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
