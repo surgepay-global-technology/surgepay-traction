@@ -10,41 +10,41 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Fetch ALL transactions in batches to avoid any limits
-    let allTransactions: any[] = [];
+    // Process transactions in batches WITHOUT storing all in memory
+    const stats: Record<string, { count: number; total: number }> = {};
     let hasMore = true;
     let offset = 0;
     const batchSize = 1000;
+    let totalRowsFetched = 0;
 
     while (hasMore) {
       const { data: batch, error: batchError } = await supabase
         .from('wallet_transactions')
         .select('currency, amount_cents')
         .eq('status', 'SUCCESS')
-        .in('currency', ['USDC', 'NGN'])
         .range(offset, offset + batchSize - 1);
 
       if (batchError) throw batchError;
 
       if (batch && batch.length > 0) {
-        allTransactions = [...allTransactions, ...batch];
+        // Process batch immediately, don't accumulate
+        batch.forEach((tx: any) => {
+          const currency = String(tx.currency || '').trim().toUpperCase();
+          
+          if (!stats[currency]) {
+            stats[currency] = { count: 0, total: 0 };
+          }
+          stats[currency].count++;
+          stats[currency].total += tx.amount_cents / 100.0;
+        });
+
+        totalRowsFetched += batch.length;
         offset += batchSize;
         hasMore = batch.length === batchSize;
       } else {
         hasMore = false;
       }
     }
-
-    // Aggregate ALL transactions
-    const stats: Record<string, { count: number; total: number }> = {};
-    
-    allTransactions.forEach((tx: any) => {
-      if (!stats[tx.currency]) {
-        stats[tx.currency] = { count: 0, total: 0 };
-      }
-      stats[tx.currency].count++;
-      stats[tx.currency].total += tx.amount_cents / 100.0;
-    });
 
     const result: TransactionStatsByCurrency[] = Object.entries(stats)
       .map(([currency, data]) => ({
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ 
       data: result,
-      total_rows_fetched: allTransactions.length,
+      total_rows_fetched: totalRowsFetched,
       fetched_at: new Date().toISOString()
     });
   } catch (error: any) {

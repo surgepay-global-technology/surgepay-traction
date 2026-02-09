@@ -10,46 +10,56 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get all unique user_ids with successful transactions
-    const { data: transactions, error } = await supabase
-      .from('wallet_transactions')
-      .select('user_id, metadata')
-      .eq('status', 'SUCCESS')
-      .not('user_id', 'is', null);
-
-    if (error) throw error;
-
-    // Extract unique wallet addresses from metadata
+    // Process transactions in batches to extract wallet addresses
     const walletsSet = new Set<string>();
     const walletData: Record<string, { txCount: number; totalVolume: number }> = {};
+    const uniqueUserIds = new Set<string>();
+    
+    let hasMore = true;
+    let offset = 0;
+    const batchSize = 1000;
 
-    transactions?.forEach((tx: any) => {
-      // Try to get wallet address from metadata
-      const walletAddress = tx.metadata?.wallet_address || 
-                           tx.metadata?.from_address || 
-                           tx.metadata?.to_address ||
-                           tx.metadata?.address;
+    while (hasMore) {
+      const { data: batch, error: batchError } = await supabase
+        .from('wallet_transactions')
+        .select('user_id, metadata')
+        .eq('status', 'SUCCESS')
+        .not('user_id', 'is', null)
+        .range(offset, offset + batchSize - 1);
 
-      if (walletAddress && walletAddress.startsWith('0x')) {
-        walletsSet.add(walletAddress.toLowerCase());
-        
-        if (!walletData[walletAddress.toLowerCase()]) {
-          walletData[walletAddress.toLowerCase()] = { txCount: 0, totalVolume: 0 };
-        }
-        walletData[walletAddress.toLowerCase()].txCount++;
+      if (batchError) throw batchError;
+
+      if (batch && batch.length > 0) {
+        // Process batch immediately
+        batch.forEach((tx: any) => {
+          // Add user_id to set
+          if (tx.user_id) {
+            uniqueUserIds.add(tx.user_id);
+          }
+
+          // Try to get wallet address from metadata
+          const walletAddress = tx.metadata?.wallet_address || 
+                               tx.metadata?.from_address || 
+                               tx.metadata?.to_address ||
+                               tx.metadata?.address;
+
+          if (walletAddress && walletAddress.startsWith('0x')) {
+            const lowerAddress = walletAddress.toLowerCase();
+            walletsSet.add(lowerAddress);
+            
+            if (!walletData[lowerAddress]) {
+              walletData[lowerAddress] = { txCount: 0, totalVolume: 0 };
+            }
+            walletData[lowerAddress].txCount++;
+          }
+        });
+
+        offset += batchSize;
+        hasMore = batch.length === batchSize;
+      } else {
+        hasMore = false;
       }
-    });
-
-    // Get unique user_ids as well
-    const { data: users, error: usersError } = await supabase
-      .from('wallet_transactions')
-      .select('user_id')
-      .eq('status', 'SUCCESS')
-      .not('user_id', 'is', null);
-
-    if (usersError) throw usersError;
-
-    const uniqueUserIds = new Set(users?.map((u: any) => u.user_id));
+    }
 
     return NextResponse.json({
       data: {

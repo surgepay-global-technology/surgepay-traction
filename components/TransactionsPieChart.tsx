@@ -73,15 +73,15 @@ export default function TransactionsPieChart() {
         Transaction Distribution by Type
       </h3>
       
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={400}>
         <PieChart>
           <Pie
             data={pieData}
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-            outerRadius={100}
+            label={false}
+            outerRadius={120}
             fill="#8884d8"
             dataKey="value"
           >
@@ -89,8 +89,33 @@ export default function TransactionsPieChart() {
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number) => formatNumber(value)} />
-          <Legend />
+          <Tooltip 
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                const data = payload[0].payload;
+                const totalTxs = pieData.reduce((sum, item) => sum + item.value, 0);
+                const percentage = ((data.value / totalTxs) * 100).toFixed(1);
+                return (
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                    <p className="font-bold text-gray-900 dark:text-white mb-2">{data.name}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      {formatNumber(data.value)} transactions
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {percentage}% of total
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            }}
+          />
+          <Legend 
+            layout="vertical"
+            align="right"
+            verticalAlign="middle"
+            wrapperStyle={{ paddingLeft: '20px' }}
+          />
         </PieChart>
       </ResponsiveContainer>
 

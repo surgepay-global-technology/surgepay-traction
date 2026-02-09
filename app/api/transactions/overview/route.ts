@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
+export interface CurrencyTotal {
+  currency: string;
+  tx_count: number;
+  total: string;
+}
+
 export interface TransactionOverview {
   successful_transaction_count: number;
-  usdc_tx_count: number;
-  usdc_total: string;
-  ngn_tx_count: number;
-  ngn_total: string;
+  currencies: CurrencyTotal[];
 }
 
 export async function GET() {
@@ -19,10 +22,7 @@ export async function GET() {
     }
 
     let totalCount = 0;
-    let usdcCount = 0;
-    let usdcTotal = 0;
-    let ngnCount = 0;
-    let ngnTotal = 0;
+    const currencyTotals: Record<string, { count: number; total: number }> = {};
 
     let offset = 0;
     const batchSize = 1000;
@@ -42,29 +42,33 @@ export async function GET() {
         if (status !== 'SUCCESS') return;
 
         totalCount += 1;
-        const currency = String(row.currency || '').toUpperCase();
+        const currency = String(row.currency || '').trim().toUpperCase();
         const amount = Number(row.amount_cents) / 100.0;
 
-        if (currency === 'USDC') {
-          usdcCount += 1;
-          usdcTotal += amount;
-        } else if (currency === 'NGN') {
-          ngnCount += 1;
-          ngnTotal += amount;
+        if (!currencyTotals[currency]) {
+          currencyTotals[currency] = { count: 0, total: 0 };
         }
+        currencyTotals[currency].count += 1;
+        currencyTotals[currency].total += amount;
       });
 
       offset += batchSize;
       hasMore = batch.length === batchSize;
     }
 
+    // Convert to array and sort by transaction count (descending)
+    const currencies: CurrencyTotal[] = Object.entries(currencyTotals)
+      .map(([currency, data]) => ({
+        currency,
+        tx_count: data.count,
+        total: data.total.toFixed(2),
+      }))
+      .sort((a, b) => b.tx_count - a.tx_count);
+
     const data: TransactionOverview[] = [
       {
         successful_transaction_count: totalCount,
-        usdc_tx_count: usdcCount,
-        usdc_total: usdcTotal.toFixed(2),
-        ngn_tx_count: ngnCount,
-        ngn_total: ngnTotal.toFixed(2),
+        currencies,
       },
     ];
 
