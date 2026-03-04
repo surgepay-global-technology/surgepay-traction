@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, safeFetch } from '@/lib/utils';
 
 interface StatsByType {
   transaction_type: string;
@@ -16,27 +16,25 @@ export default function TransactionsByType() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    const controller = new AbortController();
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/transactions/stats-by-type');
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch stats');
+    (async () => {
+      try {
+        setLoading(true);
+        const result = await safeFetch('/api/transactions/stats-by-type', {
+          signal: controller.signal,
+        });
+        setStats(result.data || []);
+        setError(null);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
+    })();
 
-      setStats(result.data || []);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
     return (
@@ -47,15 +45,18 @@ export default function TransactionsByType() {
   }
 
   if (error) {
+    const isSupabaseError = error.toLowerCase().includes('supabase') || error.includes('503');
     return (
       <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">⚠️ Supabase Not Configured</p>
+        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+          {isSupabaseError ? '⚠️ Supabase Not Configured' : '⚠️ Failed to Load Data'}
+        </p>
         <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          Add your Supabase credentials to .env to view transaction breakdowns.
+          {isSupabaseError
+            ? 'Add your Supabase credentials to .env to view transaction breakdowns.'
+            : 'There was a problem fetching transaction data. Please try again.'}
         </p>
-        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-          {error}
-        </p>
+        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">{error}</p>
       </div>
     );
   }

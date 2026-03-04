@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, safeFetch } from '@/lib/utils';
 
 interface StatsByType {
   transaction_type: string;
@@ -19,33 +19,27 @@ export default function TransactionsPieChart() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    const controller = new AbortController();
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      // Add timestamp to bust cache
-      const response = await fetch(`/api/transactions/stats-by-type?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch stats');
+    (async () => {
+      try {
+        setLoading(true);
+        const result = await safeFetch(`/api/transactions/stats-by-type?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
+        });
+        setStats(result.data || []);
+        setError(null);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
+    })();
 
-      setStats(result.data || []);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
     return (

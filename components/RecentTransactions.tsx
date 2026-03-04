@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, safeFetch } from '@/lib/utils';
 
 interface Transaction {
   id: string;
@@ -20,27 +20,25 @@ export default function RecentTransactions() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchTransactions();
-  }, []);
+    const controller = new AbortController();
 
-  const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/transactions/recent?limit=10');
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch transactions');
+    (async () => {
+      try {
+        setLoading(true);
+        const result = await safeFetch('/api/transactions/recent?limit=10', {
+          signal: controller.signal,
+        });
+        setTransactions(result.data || []);
+        setError(null);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
+    })();
 
-      setTransactions(result.data || []);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
     return (
@@ -51,15 +49,18 @@ export default function RecentTransactions() {
   }
 
   if (error) {
+    const isSupabaseError = error.toLowerCase().includes('supabase') || error.includes('503');
     return (
       <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">⚠️ Supabase Not Configured</p>
+        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+          {isSupabaseError ? '⚠️ Supabase Not Configured' : '⚠️ Failed to Load Data'}
+        </p>
         <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          Add your Supabase credentials to .env to view recent transactions.
+          {isSupabaseError
+            ? 'Add your Supabase credentials to .env to view recent transactions.'
+            : 'There was a problem fetching recent transactions. Please try again.'}
         </p>
-        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-          {error}
-        </p>
+        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">{error}</p>
       </div>
     );
   }

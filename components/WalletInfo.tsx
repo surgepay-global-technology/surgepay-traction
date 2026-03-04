@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { shortenAddress, parseEther } from '@/lib/utils';
+import { shortenAddress, parseEther, safeFetch } from '@/lib/utils';
 
 interface TokenBalance {
   contractAddress: string;
@@ -34,14 +34,10 @@ export default function WalletInfo() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/wallets/info?address=${walletAddress}`);
-      const result = await response.json();
+      const result = await safeFetch(`/api/wallets/info?address=${walletAddress}`);
 
-      if (!response.ok) {
-        if (result.error?.includes('missing response') || result.error?.includes('SERVER_ERROR')) {
-          throw new Error('Invalid Alchemy API key. Please add a valid Alchemy API key to your .env file (ALCHEMY_TOKEN). The current token is not a valid API key.');
-        }
-        throw new Error(result.error || 'Failed to fetch wallet info');
+      if (result.error?.includes('missing response') || result.error?.includes('SERVER_ERROR')) {
+        throw new Error('Invalid Alchemy API key. Please add a valid Alchemy API key to your .env file (ALCHEMY_TOKEN). The current token is not a valid API key.');
       }
 
       setWalletData(result.data);

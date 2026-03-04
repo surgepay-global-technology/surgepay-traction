@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, safeFetch } from '@/lib/utils';
 
 interface StatsByCurrency {
   currency: string;
@@ -42,27 +42,26 @@ export default function CurrencyPieChart() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    const controller = new AbortController();
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      // Add timestamp to bust cache
-      const response = await fetch(`/api/transactions/stats-by-currency?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const result = await response.json();
-      setStats(result.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    (async () => {
+      try {
+        setLoading(true);
+        const result = await safeFetch(`/api/transactions/stats-by-currency?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
+        });
+        setStats(result.data || []);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') console.error(err);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
     return (

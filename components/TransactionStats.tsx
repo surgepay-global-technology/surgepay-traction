@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, safeFetch } from '@/lib/utils';
 
 interface CurrencyTotal {
   currency: string;
@@ -20,34 +20,30 @@ export default function TransactionStats() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchOverview();
-  }, []);
+    const controller = new AbortController();
 
-  const fetchOverview = async () => {
-    try {
-      setLoading(true);
-      // Add timestamp to bust cache
-      const response = await fetch(`/api/transactions/overview?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch overview');
+    (async () => {
+      try {
+        setLoading(true);
+        const result = await safeFetch(`/api/transactions/overview?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
+        });
+        const data = result.data?.[0] ?? null;
+        setOverview(data);
+        setError(null);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setError(err.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
+    })();
 
-      const data = result.data?.[0] ?? null;
-      setOverview(data);
-      setError(null);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
     return (
@@ -64,11 +60,16 @@ export default function TransactionStats() {
   }
 
   if (error) {
+    const isSupabaseError = error.toLowerCase().includes('supabase') || error.includes('503');
     return (
       <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">⚠️ Supabase Not Configured</p>
+        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+          {isSupabaseError ? '⚠️ Supabase Not Configured' : '⚠️ Failed to Load Data'}
+        </p>
         <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          Add your Supabase credentials to .env to view transaction statistics.
+          {isSupabaseError
+            ? 'Add your Supabase credentials to .env to view transaction statistics.'
+            : 'There was a problem fetching transaction statistics. Please try again.'}
         </p>
         <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">{error}</p>
       </div>

@@ -8,10 +8,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#009B77', // SurgePay Teal
-        'primary-dark': '#007B5F',
-        secondary: '#F5A623', // SurgePay Orange
-        'secondary-dark': '#E09400',
+        primary: '#5F2AF3', // SurgePay Purple
+        'primary-dark': '#4A1ED4',
+        secondary: '#ADEE68', // SurgePay Lime
+        'secondary-dark': '#8ECC4A',
       },
     },
   },
