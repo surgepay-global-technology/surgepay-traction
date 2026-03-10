@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 export interface UsersStats {
   total_users: number;
   tier1_verified: number;

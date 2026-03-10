@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * App store download counts. Set in .env:
  * APPLE_DOWNLOADS=301

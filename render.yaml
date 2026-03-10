@@ -7,11 +7,15 @@ services:
     runtime: node
     region: oregon
 
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm ci && npm run build
+    startCommand: npm start -- -p $PORT
 
     envVars:
       - key: NODE_VERSION
         value: 18
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=512
+      - key: PORT
+        value: 10000
       # Add your env vars in Render Dashboard: Environment → Environment Variables
       # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ALCHEMY_TOKEN, etc.
