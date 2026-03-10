@@ -10,7 +10,7 @@ import AllWalletsOnBase from '@/components/AllWalletsOnBase';
 import AppDownloads from '@/components/AppDownloads';
 import Header from '@/components/Header';
 
-const AUTO_REFRESH_INTERVAL = 30 * 1000; // 30 seconds in milliseconds
+const AUTO_REFRESH_INTERVAL = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -28,10 +28,10 @@ export default function DashboardPage() {
     setLastRefresh(new Date());
   }, []);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 2 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log('Auto-refreshing dashboard data (30 second interval)');
+      console.log('Auto-refreshing dashboard data (2 minute interval)');
       handleRefresh();
     }, AUTO_REFRESH_INTERVAL);
 
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
           {mounted && lastRefresh ? (
             <>
-              Last updated: {lastRefresh.toLocaleString()} • Auto-refresh: Every 30 seconds
+              Last updated: {lastRefresh.toLocaleString()} • Auto-refresh: Every 2 minutes
             </>
           ) : (
             <>Loading...</>

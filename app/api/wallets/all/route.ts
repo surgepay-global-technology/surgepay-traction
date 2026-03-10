@@ -1,82 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { withCache } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+const MAX_ADDRESSES_RETURNED = 200;
+
+async function fetchWalletStats() {
+  // Count distinct user_ids with a single DB-side query
+  const { count: userCount, error: userError } = await supabase
+    .from('wallet_transactions')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('status', 'SUCCESS')
+    .not('user_id', 'is', null);
+
+  if (userError) throw userError;
+
+  // Fetch only a capped set of rows to extract wallet addresses — no unbounded loop
+  const { data: sample, error: sampleError } = await supabase
+    .from('wallet_transactions')
+    .select('metadata')
+    .eq('status', 'SUCCESS')
+    .not('metadata', 'is', null)
+    .limit(5000);
+
+  if (sampleError) throw sampleError;
+
+  const walletsSet = new Set<string>();
+  const walletTxCount: Record<string, number> = {};
+
+  (sample ?? []).forEach((tx: any) => {
+    const addr =
+      tx.metadata?.wallet_address ||
+      tx.metadata?.from_address ||
+      tx.metadata?.to_address ||
+      tx.metadata?.address;
+
+    if (addr && typeof addr === 'string' && addr.startsWith('0x')) {
+      const lower = addr.toLowerCase();
+      walletsSet.add(lower);
+      walletTxCount[lower] = (walletTxCount[lower] ?? 0) + 1;
+    }
+  });
+
+  const allAddresses = Array.from(walletsSet);
+
+  return {
+    total_unique_wallets: allAddresses.length,
+    total_unique_users: userCount ?? 0,
+    wallet_addresses: allAddresses.slice(0, MAX_ADDRESSES_RETURNED),
+    wallet_details: Object.fromEntries(
+      allAddresses.slice(0, MAX_ADDRESSES_RETURNED).map((addr) => [
+        addr,
+        { txCount: walletTxCount[addr] ?? 0, totalVolume: 0 },
+      ]),
+    ),
+  };
+}
+
+export async function GET(_request: NextRequest) {
   try {
     if (!isSupabaseConfigured) {
-      return NextResponse.json({
-        data: [],
-        error: 'Supabase not configured'
-      });
+      return NextResponse.json({ data: [], error: 'Supabase not configured' });
     }
 
-    // Process transactions in batches to extract wallet addresses
-    const walletsSet = new Set<string>();
-    const walletData: Record<string, { txCount: number; totalVolume: number }> = {};
-    const uniqueUserIds = new Set<string>();
-    
-    let hasMore = true;
-    let offset = 0;
-    const batchSize = 1000;
+    const data = await withCache('wallets:all', fetchWalletStats);
 
-    while (hasMore) {
-      const { data: batch, error: batchError } = await supabase
-        .from('wallet_transactions')
-        .select('user_id, metadata')
-        .eq('status', 'SUCCESS')
-        .not('user_id', 'is', null)
-        .range(offset, offset + batchSize - 1);
-
-      if (batchError) throw batchError;
-
-      if (batch && batch.length > 0) {
-        // Process batch immediately
-        batch.forEach((tx: any) => {
-          // Add user_id to set
-          if (tx.user_id) {
-            uniqueUserIds.add(tx.user_id);
-          }
-
-          // Try to get wallet address from metadata
-          const walletAddress = tx.metadata?.wallet_address || 
-                               tx.metadata?.from_address || 
-                               tx.metadata?.to_address ||
-                               tx.metadata?.address;
-
-          if (walletAddress && walletAddress.startsWith('0x')) {
-            const lowerAddress = walletAddress.toLowerCase();
-            walletsSet.add(lowerAddress);
-            
-            if (!walletData[lowerAddress]) {
-              walletData[lowerAddress] = { txCount: 0, totalVolume: 0 };
-            }
-            walletData[lowerAddress].txCount++;
-          }
-        });
-
-        offset += batchSize;
-        hasMore = batch.length === batchSize;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    return NextResponse.json({
-      data: {
-        total_unique_wallets: walletsSet.size,
-        total_unique_users: uniqueUserIds.size,
-        wallet_addresses: Array.from(walletsSet),
-        wallet_details: walletData,
-      },
-      fetched_at: new Date().toISOString(),
-    });
+    return NextResponse.json({ data, fetched_at: new Date().toISOString() });
   } catch (error: any) {
     console.error('Error fetching all wallets:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch wallets' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
