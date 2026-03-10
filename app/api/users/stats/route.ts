@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { withCache } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,38 +10,60 @@ export interface UsersStats {
   tier3_verified: number;
 }
 
-async function fetchUsersStats(): Promise<UsersStats> {
-  // Push all four counts to Postgres — one round-trip each, zero rows in Node memory
-  const [total, tier1, tier2, tier3] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tier_1_verified', true),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tier_2_verified', true),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tier_3_verified', true),
-  ]);
-
-  if (total.error) throw total.error;
-  if (tier1.error) throw tier1.error;
-  if (tier2.error) throw tier2.error;
-  if (tier3.error) throw tier3.error;
-
-  return {
-    total_users: total.count ?? 0,
-    tier1_verified: tier1.count ?? 0,
-    tier2_verified: tier2.count ?? 0,
-    tier3_verified: tier3.count ?? 0,
-  };
-}
-
 export async function GET() {
   try {
     if (!isSupabaseConfigured) {
       return NextResponse.json(
         { error: 'Supabase not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env' },
-        { status: 503 },
+        { status: 503 }
       );
     }
 
-    const data = await withCache('users:stats', fetchUsersStats);
+    let totalUsers = 0;
+    let tier1 = 0;
+    let tier2 = 0;
+    let tier3 = 0;
+
+    let offset = 0;
+    const batchSize = 500;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: batch, error } = await supabase
+        .from('users')
+        .select('id, tier_1_verified, tier_2_verified, tier_3_verified')
+        .range(offset, offset + batchSize - 1);
+
+      if (error) {
+        console.error('Users stats error:', error);
+        return NextResponse.json(
+          { error: error.message || 'Failed to fetch users (check table name and columns)' },
+          { status: 500 }
+        );
+      }
+      if (!batch?.length) break;
+
+      batch.forEach((row: Record<string, unknown>) => {
+        totalUsers += 1;
+        const t1 = row.tier_1_verified ?? (row as Record<string, unknown>).tier1_verified;
+        const t2 = row.tier_2_verified ?? (row as Record<string, unknown>).tier2_verified;
+        const t3 = row.tier_3_verified ?? (row as Record<string, unknown>).tier3_verified;
+        if (t1 === true) tier1 += 1;
+        if (t2 === true) tier2 += 1;
+        if (t3 === true) tier3 += 1;
+      });
+
+      offset += batchSize;
+      hasMore = batch.length === batchSize;
+    }
+
+    const data: UsersStats = {
+      total_users: totalUsers,
+      tier1_verified: tier1,
+      tier2_verified: tier2,
+      tier3_verified: tier3,
+    };
+
     return NextResponse.json({ data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch user stats';
