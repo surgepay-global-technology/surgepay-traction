@@ -56,8 +56,8 @@ ALCHEMY_API_KEY=your-alchemy-api-key
 ALCHEMY_NETWORK=base-mainnet  # or eth-mainnet, polygon-mainnet, etc.
 
 # Coinbase Webhook Configuration
-COINBASE_WEBHOOK_SIGNING_KEY=whsec_u9tJawau7DANMgx8yL0Bx4VU
-COINBASE_AUTH_TOKEN=CdskTLSH0lkQn5d-P_ieoJpcl9RjetBN
+COINBASE_WEBHOOK_SIGNING_KEY=
+COINBASE_AUTH_TOKEN=
 
 # Dashboard Authentication (optional)
 DASHBOARD_PASSWORD=your-secure-password
