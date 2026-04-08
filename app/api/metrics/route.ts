@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-import { alchemy } from '@/lib/alchemy';
 import { coinbaseApiCall, COINBASE_SERVER_WALLET } from '@/lib/coinbase';
 
 export async function GET(request: NextRequest) {

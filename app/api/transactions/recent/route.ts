@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, WalletTransaction, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
     if (!isSupabaseConfigured) {
-      return NextResponse.json({
-        data: [],
-        error: 'Supabase not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env'
-      });
+      return NextResponse.json(
+        {
+          error:
+            'Supabase not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env',
+        },
+        { status: 503 }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;

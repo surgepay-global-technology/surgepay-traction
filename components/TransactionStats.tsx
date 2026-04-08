@@ -1,21 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { TransactionOverviewRow } from '@/lib/api-types';
+import { isBackendUnavailableError } from '@/lib/dashboard-empty';
 import { formatCurrency, formatNumber, safeFetch } from '@/lib/utils';
-
-interface CurrencyTotal {
-  currency: string;
-  tx_count: number;
-  total: string;
-}
-
-interface TransactionOverviewItem {
-  successful_transaction_count: number;
-  currencies: CurrencyTotal[];
-}
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function TransactionStats() {
-  const [overview, setOverview] = useState<TransactionOverviewItem | null>(null);
+  const [overview, setOverview] = useState<TransactionOverviewRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,11 +17,14 @@ export default function TransactionStats() {
     (async () => {
       try {
         setLoading(true);
-        const result = await safeFetch(`/api/transactions/overview?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-          signal: controller.signal,
-        });
+        const result = await safeFetch<TransactionOverviewRow[]>(
+          `/api/transactions/overview?t=${Date.now()}`,
+          {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal: controller.signal,
+          }
+        );
         const data = result.data?.[0] ?? null;
         setOverview(data);
         setError(null);
@@ -47,12 +42,12 @@ export default function TransactionStats() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="stat-card">
-            <div className="loading h-6 w-24 mb-2"></div>
-            <div className="loading h-8 w-32 mb-1"></div>
-            <div className="loading h-4 w-40"></div>
+            <div className="loading mb-2 h-5 w-24" />
+            <div className="loading mb-1 h-10 w-36" />
+            <div className="loading h-4 w-40" />
           </div>
         ))}
       </div>
@@ -60,89 +55,84 @@ export default function TransactionStats() {
   }
 
   if (error) {
-    const isSupabaseError = error.toLowerCase().includes('supabase') || error.includes('503');
     return (
-      <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-          {isSupabaseError ? '⚠️ Supabase Not Configured' : '⚠️ Failed to Load Data'}
-        </p>
-        <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          {isSupabaseError
-            ? 'Add your Supabase credentials to .env to view transaction statistics.'
-            : 'There was a problem fetching transaction statistics. Please try again.'}
-        </p>
-        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">{error}</p>
-      </div>
+      <EmptyState
+        variant={isBackendUnavailableError(error) ? 'unavailable' : 'error'}
+        devDetail={error}
+      />
     );
   }
 
   if (!overview) {
-    return (
-      <div className="card">
-        <p className="text-gray-500 dark:text-gray-400 text-center py-8">No transaction data</p>
-      </div>
-    );
+    return <EmptyState variant="empty" />;
   }
 
   const currencies = overview.currencies || [];
-  
-  // Define color gradients for different currencies
-  const getGradientColors = (currency: string, index: number) => {
+
+  const getGradientColors = (index: number) => {
     const colorSchemes = [
       { from: 'from-primary', to: 'to-primary-dark', border: 'border-primary/20' },
-      { from: 'from-secondary', to: 'to-secondary-dark', border: 'border-secondary/20' },
-      { from: 'from-primary/90', to: 'to-primary-dark/90', border: 'border-primary/20' },
+      { from: 'from-secondary', to: 'to-secondary-dark', border: 'border-secondary/25' },
+      { from: 'from-violet-500', to: 'to-violet-700', border: 'border-violet-500/20' },
       { from: 'from-teal-500', to: 'to-teal-700', border: 'border-teal-500/20' },
-      { from: 'from-purple-500', to: 'to-purple-700', border: 'border-purple-500/20' },
       { from: 'from-orange-500', to: 'to-orange-700', border: 'border-orange-500/20' },
       { from: 'from-pink-500', to: 'to-pink-700', border: 'border-pink-500/20' },
-      { from: 'from-indigo-500', to: 'to-indigo-700', border: 'border-indigo-500/20' },
     ];
     return colorSchemes[index % colorSchemes.length];
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {/* Total Transactions Card */}
-      <div className="bg-gradient-to-br from-primary to-primary-dark rounded-xl p-6 shadow-lg border border-primary/20">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
-            Total Transactions
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-primary to-primary-dark p-6 shadow-panel ring-1 ring-black/5 dark:shadow-panel-dark">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/90">
+            Total transactions
           </h3>
-          <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
+          <span className="rounded-lg bg-white/10 p-2 text-white/90">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+          </span>
         </div>
-        <p className="text-4xl font-bold text-white mb-2">
+        <p className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
           {formatNumber(overview.successful_transaction_count)}
         </p>
-        <p className="text-sm text-white/80">All successful transactions</p>
+        <p className="mt-1 text-sm text-white/75">Successful only</p>
       </div>
 
-      {/* Currency Cards */}
       {currencies.map((currency, index) => {
         const totalNum = parseFloat(currency.total);
-        const colors = getGradientColors(currency.currency, index);
-        
+        const colors = getGradientColors(index);
+
         return (
-          <div 
+          <div
             key={currency.currency}
-            className={`bg-gradient-to-br ${colors.from} ${colors.to} rounded-xl p-6 shadow-lg border ${colors.border}`}
+            className={`rounded-2xl border bg-gradient-to-br p-6 shadow-panel ring-1 ring-black/5 dark:shadow-panel-dark ${colors.from} ${colors.to} ${colors.border}`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/90">
                 {currency.currency}
               </h3>
-              <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <span className="rounded-lg bg-black/10 p-2 text-white/90 dark:bg-white/10">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </span>
             </div>
-            <p className="text-4xl font-bold text-white mb-2">
+            <p className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
               {formatCurrency(totalNum, currency.currency)}
             </p>
-            <p className="text-sm text-white/80">
-              {formatNumber(currency.tx_count)} transactions
-            </p>
+            <p className="mt-1 text-sm text-white/75">{formatNumber(currency.tx_count)} transactions</p>
           </div>
         );
       })}

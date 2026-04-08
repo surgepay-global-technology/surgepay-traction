@@ -1,9 +1,5 @@
 import { Network, Alchemy } from 'alchemy-sdk';
 
-if (!process.env.ALCHEMY_TOKEN) {
-  throw new Error('Missing env.ALCHEMY_TOKEN');
-}
-
 const networkMap: Record<string, Network> = {
   'eth-mainnet': Network.ETH_MAINNET,
   'eth-sepolia': Network.ETH_SEPOLIA,
@@ -15,14 +11,22 @@ const networkMap: Record<string, Network> = {
   'optimism-mainnet': Network.OPT_MAINNET,
 };
 
-const network = networkMap[process.env.ALCHEMY_NETWORK || 'base-mainnet'] || Network.BASE_MAINNET;
+let alchemyClient: Alchemy | null | undefined;
 
-const config = {
-  apiKey: process.env.ALCHEMY_TOKEN,
-  network,
-};
-
-export const alchemy = new Alchemy(config);
+/** Returns an Alchemy client when ALCHEMY_TOKEN is set; otherwise null. Never throws at import time. */
+export function getAlchemy(): Alchemy | null {
+  if (alchemyClient !== undefined) {
+    return alchemyClient;
+  }
+  const apiKey = process.env.ALCHEMY_TOKEN;
+  if (!apiKey) {
+    alchemyClient = null;
+    return null;
+  }
+  const network = networkMap[process.env.ALCHEMY_NETWORK || 'base-mainnet'] || Network.BASE_MAINNET;
+  alchemyClient = new Alchemy({ apiKey, network });
+  return alchemyClient;
+}
 
 export interface WalletInfo {
   address: string;

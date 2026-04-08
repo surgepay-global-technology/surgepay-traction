@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { alchemy } from '@/lib/alchemy';
+import { getAlchemy } from '@/lib/alchemy';
 
 export async function GET(request: NextRequest) {
   try {
+    const alchemy = getAlchemy();
+    if (!alchemy) {
+      return NextResponse.json(
+        { error: 'Alchemy not configured. Set ALCHEMY_TOKEN in .env' },
+        { status: 503 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const addresses = searchParams.get('addresses')?.split(',') || [];
 
