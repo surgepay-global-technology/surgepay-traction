@@ -3,21 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  --background: #f1f5f9;
+  --foreground: #0f172a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #020617;
+    --foreground: #f1f5f9;
   }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer utilities {
@@ -27,11 +21,11 @@ body {
 }
 
 .card {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700;
+  @apply rounded-2xl border border-slate-200/90 bg-white p-6 shadow-panel dark:border-slate-700/80 dark:bg-slate-900/60 dark:shadow-panel-dark;
 }
 
 .stat-card {
-  @apply bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary-dark/30 dark:to-primary/20 rounded-lg p-6 border border-primary/20 dark:border-primary/30;
+  @apply rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-primary/[0.02] p-6 dark:border-primary/25 dark:from-primary-dark/20 dark:to-primary/10;
 }
 
 .btn-primary {

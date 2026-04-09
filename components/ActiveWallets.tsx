@@ -80,7 +80,7 @@ export default function ActiveWallets() {
           <p className="text-yellow-800 dark:text-yellow-200 font-semibold mb-2">⚠️ Alchemy Configuration Issue</p>
           <p className="text-sm text-yellow-700 dark:text-yellow-300">{error}</p>
           <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-            <strong>To fix:</strong> Get your API key from <a href="https://dashboard.alchemy.com" target="_blank" rel="noopener noreferrer" className="underline">dashboard.alchemy.com</a> → Your App → "VIEW KEY" → Copy the API KEY (not auth token)
+            <strong>To fix:</strong> Get your API key from <a href="https://dashboard.alchemy.com" target="_blank" rel="noopener noreferrer" className="underline">dashboard.alchemy.com</a> → Your App → &quot;VIEW KEY&quot; → Copy the API KEY (not auth token)
           </p>
         </div>
       )}

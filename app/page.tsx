@@ -9,8 +9,9 @@ import RecentTransactions from '@/components/RecentTransactions';
 import AllWalletsOnBase from '@/components/AllWalletsOnBase';
 import AppDownloads from '@/components/AppDownloads';
 import Header from '@/components/Header';
+import DashboardSection from '@/components/DashboardSection';
 
-const AUTO_REFRESH_INTERVAL = 30 * 1000; // 30 seconds in milliseconds
+const AUTO_REFRESH_INTERVAL = 30 * 1000;
 
 export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -22,108 +23,80 @@ export default function DashboardPage() {
     setLastRefresh(new Date());
   }, []);
 
-  // Set mounted state
   useEffect(() => {
     setMounted(true);
     setLastRefresh(new Date());
   }, []);
 
-  // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log('Auto-refreshing dashboard data (30 second interval)');
       handleRefresh();
     }, AUTO_REFRESH_INTERVAL);
-
     return () => clearInterval(interval);
   }, [handleRefresh]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-primary/5 to-secondary/5 dark:bg-gray-900">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(95,42,243,0.12),transparent)] dark:bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(95,42,243,0.18),transparent)]">
       <Header onRefresh={handleRefresh} />
-      
-      {/* Last refresh timestamp - client-side only to avoid hydration errors */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-        <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+
+      <div className="mx-auto max-w-7xl px-4 pt-3 sm:px-6 lg:px-8">
+        <p className="text-right text-xs text-slate-500 dark:text-slate-400">
           {mounted && lastRefresh ? (
             <>
-              Last updated: {lastRefresh.toLocaleString()} • Auto-refresh: Every 30 seconds
+              Updated {lastRefresh.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ·
+              Refreshes every 30s
             </>
           ) : (
-            <>Loading...</>
+            <span className="inline-block h-3 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
           )}
-        </div>
+        </p>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Transaction Statistics */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Transaction Overview
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Successful USDC and NGN transactions from Supabase
-          </p>
+      <main className="mx-auto max-w-7xl space-y-12 px-4 py-8 sm:px-6 lg:px-8">
+        <DashboardSection
+          title="Overview"
+          description="Successful transaction counts and volume by currency."
+        >
           <TransactionStats key={`stats-${refreshKey}`} />
-        </section>
+        </DashboardSection>
 
-        {/* Charts Row */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Visual Analytics
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Interactive charts for transaction insights
-          </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DashboardSection
+          title="Distribution"
+          description="How activity splits across currencies and transaction types."
+        >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <CurrencyPieChart key={`currency-chart-${refreshKey}`} />
             <TransactionsPieChart key={`type-chart-${refreshKey}`} />
           </div>
-        </section>
+        </DashboardSection>
 
-        {/* App Downloads */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            App Downloads
-          </h2>
-          {/* <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Total downloads from Apple App Store and Google Play. Set APPLE_DOWNLOADS and GOOGLE_PLAY_DOWNLOADS in .env.
-          </p> */}
+        <DashboardSection
+          title="App downloads"
+          description="Published figures from app stores when configured for this deployment."
+        >
           <AppDownloads key={`downloads-${refreshKey}`} />
-        </section>
+        </DashboardSection>
 
-        {/* All Wallets & Users */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            All Wallets & Users
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            All unique wallet addresses and users with transaction activity
-          </p>
+        <DashboardSection
+          title="Wallets & users"
+          description="On-chain wallet activity linked from transactions, alongside user totals when available."
+        >
           <AllWalletsOnBase key={`all-wallets-${refreshKey}`} />
-        </section>
+        </DashboardSection>
 
-        {/* Transaction by Type Table */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Detailed Breakdown
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Complete transaction breakdown by type and currency
-          </p>
+        <DashboardSection
+          title="Breakdown"
+          description="Successful transactions grouped by type and currency."
+        >
           <TransactionsByType key={`type-${refreshKey}`} />
-        </section>
+        </DashboardSection>
 
-        {/* Recent Transactions */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Recent Transactions
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Latest successful transactions from Supabase
-          </p>
+        <DashboardSection
+          title="Recent activity"
+          description="Latest successful transactions, newest first."
+        >
           <RecentTransactions key={`recent-${refreshKey}`} />
-        </section>
+        </DashboardSection>
       </main>
     </div>
   );

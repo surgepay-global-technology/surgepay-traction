@@ -1,87 +1,123 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatNumber } from '@/lib/utils';
+import type { UsersStats, WalletsAllData } from '@/lib/api-types';
+import { isBackendUnavailableError } from '@/lib/dashboard-empty';
+import { formatNumber, safeFetch, shortenAddress } from '@/lib/utils';
+import EmptyState from '@/components/ui/EmptyState';
 
-interface WalletsData {
-  total_unique_wallets: number;
-  total_unique_users: number;
-  wallet_addresses: string[];
-  wallet_details: Record<string, { txCount: number; totalVolume: number }>;
+function KpiCardPrimary({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-primary to-primary-dark p-5 shadow-panel ring-1 ring-black/5 dark:shadow-panel-dark">
+      <p className="text-xs font-semibold uppercase tracking-wider text-white/85">{label}</p>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{value}</p>
+      <p className="mt-1 text-xs text-white/70">{sub}</p>
+    </div>
+  );
 }
 
-interface UsersStats {
-  total_users: number;
-  tier1_verified: number;
-  tier2_verified: number;
-  tier3_verified: number;
+function KpiCardMuted({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-panel dark:border-slate-700/80 dark:bg-slate-900/50 dark:shadow-panel-dark">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</p>
+    </div>
+  );
 }
 
 export default function AllWalletsOnBase() {
-  const [walletsData, setWalletsData] = useState<WalletsData | null>(null);
+  const [walletsData, setWalletsData] = useState<WalletsAllData | null>(null);
   const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const walletsResult = await safeFetch<WalletsAllData>(`/api/wallets/all?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+          signal,
+        });
+        setWalletsData(walletsResult.data ?? null);
+
+        try {
+          const usersResult = await safeFetch<UsersStats>(`/api/users/stats?t=${Date.now()}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal,
+          });
+          setUsersStats(usersResult.data ?? null);
+        } catch {
+          if (!signal.aborted) setUsersStats(null);
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to load');
+        setWalletsData(null);
+        setUsersStats(null);
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
   }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [walletsRes, usersRes] = await Promise.all([
-        fetch('/api/wallets/all'),
-        fetch('/api/users/stats'),
-      ]);
-      const walletsResult = await walletsRes.json();
-      const usersResult = await usersRes.json();
-
-      if (!walletsRes.ok) {
-        throw new Error(walletsResult.error || 'Failed to fetch wallets');
-      }
-      setWalletsData(walletsResult.data);
-
-      if (usersRes.ok && usersResult.data) {
-        setUsersStats(usersResult.data);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
       <div className="card">
-        <div className="loading h-64 w-full"></div>
+        <div className="loading h-64 w-full rounded-xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">⚠️ Unable to Load Wallets</p>
-        <p className="text-sm text-yellow-700 dark:text-yellow-300">{error}</p>
-      </div>
+      <EmptyState
+        variant={isBackendUnavailableError(error) ? 'unavailable' : 'error'}
+        devDetail={error}
+      />
     );
   }
 
   if (!walletsData || walletsData.wallet_addresses.length === 0) {
     return (
-      <div className="card">
-        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-          No wallet addresses found in transaction metadata
-        </p>
-      </div>
+      <EmptyState
+        variant="empty"
+        title="No wallets to list"
+        description="Wallet addresses appear when successful transactions include them in their records."
+      />
     );
   }
 
-  // Sort wallets by transaction count
   const sortedWallets = [...walletsData.wallet_addresses].sort((a, b) => {
     const aCount = walletsData.wallet_details[a]?.txCount || 0;
     const bCount = walletsData.wallet_details[b]?.txCount || 0;
@@ -92,66 +128,73 @@ export default function AllWalletsOnBase() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards: Total Users (from users table) + Tier verified */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-primary to-primary-dark rounded-xl p-6 shadow-lg border border-primary/20">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white/90 uppercase tracking-wide">
-              Total Users
-            </h3>
-            <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          </div>
-          <p className="text-4xl font-bold text-white mb-1">
-            {usersStats ? formatNumber(usersStats.total_users) : '—'}
-          </p>
-          <p className="text-sm text-white/80">
-            From users table
-          </p>
+      {usersStats ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCardPrimary
+            label="Total users"
+            value={formatNumber(usersStats.total_users)}
+            sub="Registered"
+          />
+          <KpiCardMuted
+            label="Tier 1"
+            value={formatNumber(usersStats.tier1_verified)}
+            sub="Verified"
+          />
+          <KpiCardMuted
+            label="Tier 2"
+            value={formatNumber(usersStats.tier2_verified)}
+            sub="Verified"
+          />
+          <KpiCardMuted
+            label="Tier 3"
+            value={formatNumber(usersStats.tier3_verified)}
+            sub="Verified"
+          />
         </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+          User verification breakdown isn’t available in this view.
+        </div>
+      )}
 
-       </div>
-
-      {/* Top Wallets List */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {showAll ? `All Wallet Addresses (${walletsData.wallet_addresses.length})` : 'Top 3 Active Wallets'}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            {showAll ? `All addresses (${walletsData.wallet_addresses.length})` : 'Most active'}
           </h3>
           {walletsData.wallet_addresses.length > 3 && (
             <button
+              type="button"
               onClick={() => setShowAll(!showAll)}
-              className="text-sm bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
+              className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              {showAll ? 'Show Less' : `Show All ${walletsData.wallet_addresses.length}`}
+              {showAll ? 'Show top 3' : `Show all ${walletsData.wallet_addresses.length}`}
             </button>
           )}
         </div>
-        
-        <div className={`space-y-3 ${showAll ? 'max-h-96 overflow-y-auto pr-2' : ''}`}>
+
+        <div className={`space-y-2 ${showAll ? 'max-h-96 overflow-y-auto pr-1' : ''}`}>
           {displayedWallets.map((address, index) => {
             const details = walletsData.wallet_details[address] || { txCount: 0, totalVolume: 0 };
             return (
-              <div 
-                key={address} 
-                className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-secondary/5 hover:from-primary/10 hover:to-secondary/10 rounded-lg border border-primary/20 transition-all"
+              <div
+                key={address}
+                className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 transition-colors hover:border-primary/25 hover:bg-white dark:border-slate-700/80 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white font-bold text-sm">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-dark text-sm font-bold text-white">
                     {index + 1}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {address}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
+                      <span className="lg:hidden">{shortenAddress(address)}</span>
+                      <span className="hidden lg:inline">{address}</span>
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Wallet
-                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Wallet</p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0 ml-4">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-primary to-primary-dark text-white">
+                <div className="shrink-0 sm:text-right">
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary-dark dark:bg-primary/20 dark:text-primary">
                     {formatNumber(details.txCount)} txs
                   </span>
                 </div>

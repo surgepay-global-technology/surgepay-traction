@@ -2,44 +2,45 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import type { TransactionStatsByCurrency } from '@/lib/api-types';
+import { isBackendUnavailableError } from '@/lib/dashboard-empty';
 import { formatCurrency, safeFetch } from '@/lib/utils';
-
-interface StatsByCurrency {
-  currency: string;
-  total_transaction_count: number;
-  total_amount: number;
-}
+import EmptyState from '@/components/ui/EmptyState';
 
 const CURRENCY_COLORS: Record<string, string> = {
-  'USDC': '#F5A623', // Orange
-  'USD': '#F59E0B',  // Amber
-  'USDT': '#10B981', // Emerald
-  'NGN': '#009B77',  // Teal
-  'XLM': '#6366F1',  // Indigo
-  'SOL': '#8B5CF6',  // Purple
-  'ETH': '#6366F1',  // Blue
-  'TRX': '#EF4444',  // Red
-  'KES': '#06B6D4',  // Cyan
-  'GHS': '#EC4899',  // Pink
-  'UGX': '#14B8A6',  // Teal
-  'XOF': '#F97316',  // Orange
+  USDC: '#F5A623',
+  USD: '#F59E0B',
+  USDT: '#10B981',
+  NGN: '#009B77',
+  XLM: '#6366F1',
+  SOL: '#8B5CF6',
+  ETH: '#6366F1',
+  TRX: '#EF4444',
+  KES: '#06B6D4',
+  GHS: '#EC4899',
+  UGX: '#14B8A6',
+  XOF: '#F97316',
 };
 
-// Generate color for unknown currencies
 const getColorForCurrency = (currency: string, index: number): string => {
   if (CURRENCY_COLORS[currency]) return CURRENCY_COLORS[currency];
-  
-  // Fallback colors for unknown currencies
   const fallbackColors = [
-    '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', 
-    '#10B981', '#06B6D4', '#6366F1', '#EF4444'
+    '#5F2AF3',
+    '#ADEE68',
+    '#3B82F6',
+    '#8B5CF6',
+    '#EC4899',
+    '#F59E0B',
+    '#10B981',
+    '#06B6D4',
   ];
   return fallbackColors[index % fallbackColors.length];
 };
 
 export default function CurrencyPieChart() {
-  const [stats, setStats] = useState<StatsByCurrency[]>([]);
+  const [stats, setStats] = useState<TransactionStatsByCurrency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,14 +48,20 @@ export default function CurrencyPieChart() {
     (async () => {
       try {
         setLoading(true);
-        const result = await safeFetch(`/api/transactions/stats-by-currency?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-          signal: controller.signal,
-        });
+        const result = await safeFetch<TransactionStatsByCurrency[]>(
+          `/api/transactions/stats-by-currency?t=${Date.now()}`,
+          {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal: controller.signal,
+          }
+        );
         setStats(result.data || []);
-      } catch (err: any) {
-        if (err.name !== 'AbortError') console.error(err);
+        setError(null);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to load');
+        setStats([]);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -66,24 +73,50 @@ export default function CurrencyPieChart() {
   if (loading) {
     return (
       <div className="card">
-        <div className="loading h-80 w-full"></div>
+        <p className="mb-4 text-xs font-medium uppercase tracking-wider text-slate-400">By currency</p>
+        <div className="loading h-80 w-full rounded-xl" />
       </div>
     );
   }
 
-  const pieData = stats.map(stat => ({
+  if (error) {
+    return (
+      <div className="card p-4 sm:p-6">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">By currency</p>
+        <EmptyState
+          variant={isBackendUnavailableError(error) ? 'unavailable' : 'error'}
+          compact
+          devDetail={error}
+        />
+      </div>
+    );
+  }
+
+  const pieData = stats.map((stat) => ({
     name: stat.currency,
     value: stat.total_transaction_count,
     amount: stat.total_amount,
   }));
 
+  const totalCount = pieData.reduce((sum, item) => sum + item.value, 0);
+
+  if (totalCount === 0) {
+    return (
+      <div className="card p-4 sm:p-6">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">By currency</p>
+        <EmptyState variant="empty" compact title="No currency mix yet" />
+      </div>
+    );
+  }
+
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 text-center">
-        Volume Distribution by Currency
+      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">By currency</p>
+      <h3 className="mb-4 text-center text-base font-semibold text-slate-900 dark:text-white">
+        Volume share
       </h3>
-      
-      <ResponsiveContainer width="100%" height={400}>
+
+      <ResponsiveContainer width="100%" height={360}>
         <PieChart>
           <Pie
             data={pieData}
@@ -91,7 +124,7 @@ export default function CurrencyPieChart() {
             cy="50%"
             labelLine={false}
             label={false}
-            outerRadius={120}
+            outerRadius={118}
             fill="#8884d8"
             dataKey="value"
           >
@@ -99,18 +132,19 @@ export default function CurrencyPieChart() {
               <Cell key={`cell-${index}`} fill={getColorForCurrency(entry.name, index)} />
             ))}
           </Pie>
-          <Tooltip 
+          <Tooltip
             content={({ active, payload }) => {
               if (active && payload && payload.length) {
-                const data = payload[0].payload;
+                const data = payload[0].payload as (typeof pieData)[0];
+                const pct = totalCount ? ((data.value / totalCount) * 100).toFixed(1) : '0';
                 return (
-                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-                    <p className="font-bold text-gray-900 dark:text-white mb-2">{data.name}</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                    <p className="font-semibold text-slate-900 dark:text-white">{data.name}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
                       {formatCurrency(data.amount, data.name)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {data.value} transactions ({((data.value / pieData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)
+                    <p className="text-xs text-slate-500">
+                      {data.value} transactions ({pct}%)
                     </p>
                   </div>
                 );
@@ -118,33 +152,32 @@ export default function CurrencyPieChart() {
               return null;
             }}
           />
-          <Legend 
+          <Legend
             layout="vertical"
             align="right"
             verticalAlign="middle"
-            wrapperStyle={{ paddingLeft: '20px' }}
+            wrapperStyle={{ paddingLeft: '16px' }}
           />
         </PieChart>
       </ResponsiveContainer>
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         {pieData.map((item, index) => (
-          <div key={item.name} className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-            <div className="flex items-center gap-2 mb-2">
-              <div 
-                className="w-4 h-4 rounded-full" 
+          <div
+            key={item.name}
+            className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-600/80 dark:bg-slate-800/40"
+          >
+            <div className="mb-1 flex items-center gap-2">
+              <div
+                className="h-3 w-3 shrink-0 rounded-full"
                 style={{ backgroundColor: getColorForCurrency(item.name, index) }}
               />
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {item.name}
-              </p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.name}</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {formatCurrency(item.amount, item.name)}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {item.value} transactions
-            </p>
+            <p className="text-xs text-slate-500">{item.value} transactions</p>
           </div>
         ))}
       </div>

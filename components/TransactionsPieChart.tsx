@@ -2,19 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import type { TransactionStatsByTypeRow } from '@/lib/api-types';
+import { isBackendUnavailableError } from '@/lib/dashboard-empty';
 import { formatNumber, safeFetch } from '@/lib/utils';
+import EmptyState from '@/components/ui/EmptyState';
 
-interface StatsByType {
-  transaction_type: string;
-  currency: string;
-  successful_tx_count: number;
-  total_amount: number;
-}
-
-const COLORS = ['#009B77', '#F5A623', '#007B5F', '#E09400', '#00C9A7', '#FF6B35'];
+const COLORS = ['#5F2AF3', '#009B77', '#ADEE68', '#F5A623', '#4A1ED4', '#007B5F', '#8ECC4A', '#E09400'];
 
 export default function TransactionsPieChart() {
-  const [stats, setStats] = useState<StatsByType[]>([]);
+  const [stats, setStats] = useState<TransactionStatsByTypeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,15 +20,20 @@ export default function TransactionsPieChart() {
     (async () => {
       try {
         setLoading(true);
-        const result = await safeFetch(`/api/transactions/stats-by-type?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-          signal: controller.signal,
-        });
+        const result = await safeFetch<TransactionStatsByTypeRow[]>(
+          `/api/transactions/stats-by-type?t=${Date.now()}`,
+          {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal: controller.signal,
+          }
+        );
         setStats(result.data || []);
         setError(null);
-      } catch (err: any) {
-        if (err.name !== 'AbortError') setError(err.message);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setError(err.message);
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -44,18 +45,27 @@ export default function TransactionsPieChart() {
   if (loading) {
     return (
       <div className="card">
-        <div className="loading h-96 w-full"></div>
+        <p className="mb-4 text-xs font-medium uppercase tracking-wider text-slate-400">By type</p>
+        <div className="loading h-96 w-full rounded-xl" />
       </div>
     );
   }
 
   if (error) {
-    return null;
+    return (
+      <div className="card p-4 sm:p-6">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">By type</p>
+        <EmptyState
+          variant={isBackendUnavailableError(error) ? 'unavailable' : 'error'}
+          compact
+          devDetail={error}
+        />
+      </div>
+    );
   }
 
-  // Prepare data for pie chart - group by transaction type (sum across currencies)
   const typeAggregated: Record<string, number> = {};
-  stats.forEach(stat => {
+  stats.forEach((stat) => {
     if (!typeAggregated[stat.transaction_type]) {
       typeAggregated[stat.transaction_type] = 0;
     }
@@ -67,13 +77,25 @@ export default function TransactionsPieChart() {
     value,
   }));
 
+  const totalTxs = pieData.reduce((sum, item) => sum + item.value, 0);
+
+  if (totalTxs === 0) {
+    return (
+      <div className="card p-4 sm:p-6">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">By type</p>
+        <EmptyState variant="empty" compact title="No type mix yet" />
+      </div>
+    );
+  }
+
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 text-center">
-        Transaction Distribution by Type
+      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">By type</p>
+      <h3 className="mb-4 text-center text-base font-semibold text-slate-900 dark:text-white">
+        Transaction share
       </h3>
-      
-      <ResponsiveContainer width="100%" height={400}>
+
+      <ResponsiveContainer width="100%" height={360}>
         <PieChart>
           <Pie
             data={pieData}
@@ -81,7 +103,7 @@ export default function TransactionsPieChart() {
             cy="50%"
             labelLine={false}
             label={false}
-            outerRadius={120}
+            outerRadius={118}
             fill="#8884d8"
             dataKey="value"
           >
@@ -89,50 +111,46 @@ export default function TransactionsPieChart() {
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip 
+          <Tooltip
             content={({ active, payload }) => {
               if (active && payload && payload.length) {
-                const data = payload[0].payload;
-                const totalTxs = pieData.reduce((sum, item) => sum + item.value, 0);
-                const percentage = ((data.value / totalTxs) * 100).toFixed(1);
+                const data = payload[0].payload as (typeof pieData)[0];
+                const percentage = totalTxs ? ((data.value / totalTxs) * 100).toFixed(1) : '0';
                 return (
-                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-                    <p className="font-bold text-gray-900 dark:text-white mb-2">{data.name}</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                    <p className="font-semibold text-slate-900 dark:text-white">{data.name}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
                       {formatNumber(data.value)} transactions
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {percentage}% of total
-                    </p>
+                    <p className="text-xs text-slate-500">{percentage}% of total</p>
                   </div>
                 );
               }
               return null;
             }}
           />
-          <Legend 
+          <Legend
             layout="vertical"
             align="right"
             verticalAlign="middle"
-            wrapperStyle={{ paddingLeft: '20px' }}
+            wrapperStyle={{ paddingLeft: '16px' }}
           />
         </PieChart>
       </ResponsiveContainer>
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         {pieData.map((item, index) => (
-          <div key={item.name} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div 
-              className="w-4 h-4 rounded-full flex-shrink-0" 
+          <div
+            key={item.name}
+            className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-600/80 dark:bg-slate-800/40"
+          >
+            <div
+              className="h-3 w-3 shrink-0 rounded-full"
               style={{ backgroundColor: COLORS[index % COLORS.length] }}
             />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                {item.name}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {formatNumber(item.value)} txs
-              </p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{item.name}</p>
+              <p className="text-xs text-slate-500">{formatNumber(item.value)} txs</p>
             </div>
           </div>
         ))}

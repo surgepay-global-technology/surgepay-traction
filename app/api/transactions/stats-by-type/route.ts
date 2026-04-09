@@ -11,10 +11,13 @@ export interface TransactionStatsByTypeCurrency {
 export async function GET(request: NextRequest) {
   try {
     if (!isSupabaseConfigured) {
-      return NextResponse.json({
-        data: [],
-        error: 'Supabase not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env'
-      });
+      return NextResponse.json(
+        {
+          error:
+            'Supabase not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env',
+        },
+        { status: 503 }
+      );
     }
 
     // Process transactions in batches WITHOUT storing all in memory
