@@ -1,9 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { TransactionStatsByCurrency } from '@/lib/api-types';
 import { isBackendUnavailableError } from '@/lib/dashboard-empty';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { formatCurrency, safeFetch } from '@/lib/utils';
 import EmptyState from '@/components/ui/EmptyState';
 
@@ -41,6 +53,7 @@ export default function CurrencyPieChart() {
   const [stats, setStats] = useState<TransactionStatsByCurrency[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width: 640px)');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,49 +129,81 @@ export default function CurrencyPieChart() {
         Volume share
       </h3>
 
-      <ResponsiveContainer width="100%" height={360}>
-        <PieChart>
-          <Pie
-            data={pieData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={false}
-            outerRadius={118}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {pieData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={getColorForCurrency(entry.name, index)} />
-            ))}
-          </Pie>
-          <Tooltip
-            content={({ active, payload }) => {
-              if (active && payload && payload.length) {
-                const data = payload[0].payload as (typeof pieData)[0];
-                const pct = totalCount ? ((data.value / totalCount) * 100).toFixed(1) : '0';
-                return (
-                  <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800">
-                    <p className="font-semibold text-slate-900 dark:text-white">{data.name}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      {formatCurrency(data.amount, data.name)}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {data.value} transactions ({pct}%)
-                    </p>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          />
-          <Legend
-            layout="vertical"
-            align="right"
-            verticalAlign="middle"
-            wrapperStyle={{ paddingLeft: '16px' }}
-          />
-        </PieChart>
+      <ResponsiveContainer width="100%" height={isMobile ? 320 : 360}>
+        {isMobile ? (
+          <BarChart data={pieData} layout="vertical" margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+            <XAxis type="number" tick={{ fontSize: 12 }} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={70}
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v) => (String(v).length > 8 ? `${String(v).slice(0, 8)}…` : String(v))}
+            />
+            <Tooltip
+              cursor={{ fill: 'rgba(148, 163, 184, 0.15)' }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const row = payload[0].payload as (typeof pieData)[0];
+                  const pct = totalCount ? ((row.value / totalCount) * 100).toFixed(1) : '0';
+                  return (
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                      <p className="font-semibold text-slate-900 dark:text-white">{row.name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        {row.value} transactions ({pct}%)
+                      </p>
+                      <p className="text-xs text-slate-500">{formatCurrency(row.amount, row.name)}</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="value" radius={[8, 8, 8, 8]}>
+              {pieData.map((entry, index) => (
+                <Cell key={`bar-${entry.name}`} fill={getColorForCurrency(entry.name, index)} />
+              ))}
+            </Bar>
+          </BarChart>
+        ) : (
+          <PieChart>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={false}
+              outerRadius={118}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={getColorForCurrency(entry.name, index)} />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload as (typeof pieData)[0];
+                  const pct = totalCount ? ((data.value / totalCount) * 100).toFixed(1) : '0';
+                  return (
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                      <p className="font-semibold text-slate-900 dark:text-white">{data.name}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        {formatCurrency(data.amount, data.name)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {data.value} transactions ({pct}%)
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+          </PieChart>
+        )}
       </ResponsiveContainer>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
